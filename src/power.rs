@@ -9,17 +9,16 @@ pub trait Coeff: Iterator<Item = Num> + Clone {}
 
 impl<T: Coeff> Coeff for PowSeries<T> {}
 impl<T: Coeff> Coeff for PowSeriesK<T> {}
-impl<T: Coeff, T2: Coeff> Coeff for PowSum<T,T2> {}
-impl<T: Coeff, T2: Coeff> Coeff for PowProduct<T,T2> {}
-impl<T: Coeff, T2: Coeff> Coeff for PowNest<T,T2> {}
+impl<T: Coeff, T2: Coeff> Coeff for PowSum<T, T2> {}
+impl<T: Coeff, T2: Coeff> Coeff for PowProduct<T, T2> {}
+impl<T: Coeff, T2: Coeff> Coeff for PowNest<T, T2> {}
 impl Coeff for Geometric {}
 impl Coeff for Constant {}
 impl Coeff for Exp {}
 
-
 #[derive(Clone)]
 pub struct PowSeries<T: Coeff> {
-    coeffs: T
+    coeffs: T,
 }
 
 impl<T: Coeff> PowSeries<T> {
@@ -54,11 +53,14 @@ impl<T: Coeff> PowSeries<T> {
 }
 
 impl<T: Coeff, T2: Coeff> Add<PowSeries<T2>> for PowSeries<T> {
-    type Output = PowSeries<PowSum<T,T2>>;
-    
+    type Output = PowSeries<PowSum<T, T2>>;
+
     fn add(self, rhs: PowSeries<T2>) -> Self::Output {
         PowSeries {
-            coeffs: PowSum { factor1: self, factor2: rhs }
+            coeffs: PowSum {
+                factor1: self,
+                factor2: rhs,
+            },
         }
     }
 }
@@ -69,19 +71,26 @@ pub struct PowSum<T: Coeff, T2: Coeff> {
     factor2: PowSeries<T2>,
 }
 
-impl<T: Coeff, T2: Coeff> Iterator for PowSum<T,T2> {
+impl<T: Coeff, T2: Coeff> Iterator for PowSum<T, T2> {
     type Item = Num;
     fn next(&mut self) -> Option<Self::Item> {
-        Some( self.factor1.coeffs.next().unwrap_or_default() + self.factor2.coeffs.next().unwrap_or_default() )
+        Some(
+            self.factor1.coeffs.next().unwrap_or_default()
+                + self.factor2.coeffs.next().unwrap_or_default(),
+        )
     }
 }
 
 impl<T: Coeff, T2: Coeff> Mul<PowSeries<T2>> for PowSeries<T> {
-    type Output = PowSeries<PowProduct<T,T2>>;
-    
+    type Output = PowSeries<PowProduct<T, T2>>;
+
     fn mul(self, rhs: PowSeries<T2>) -> Self::Output {
         PowSeries {
-            coeffs: PowProduct { factor1: self, factor2: rhs, pow: 0 }
+            coeffs: PowProduct {
+                factor1: self,
+                factor2: rhs,
+                pow: 0,
+            },
         }
     }
 }
@@ -90,19 +99,31 @@ impl<T: Coeff, T2: Coeff> Mul<PowSeries<T2>> for PowSeries<T> {
 pub struct PowProduct<T: Coeff, T2: Coeff> {
     factor1: PowSeries<T>,
     factor2: PowSeries<T2>,
-    pow: usize
+    pow: usize,
 }
 
-impl<T: Coeff, T2: Coeff> Iterator for PowProduct<T,T2> {
+impl<T: Coeff, T2: Coeff> Iterator for PowProduct<T, T2> {
     type Item = Num;
     fn next(&mut self) -> Option<Self::Item> {
         self.pow += 1;
 
-        let r = self.factor1.clone().coeffs.take(self.pow)
-            .zip(self.factor2.clone().coeffs.take(self.pow).collect::<Vec<Num>>().iter().rev())
-            .map(|(a,&b)| a * b)
+        let r = self
+            .factor1
+            .clone()
+            .coeffs
+            .take(self.pow)
+            .zip(
+                self.factor2
+                    .clone()
+                    .coeffs
+                    .take(self.pow)
+                    .collect::<Vec<Num>>()
+                    .iter()
+                    .rev(),
+            )
+            .map(|(a, &b)| a * b)
             .sum();
-        Some(r)        
+        Some(r)
     }
 }
 
@@ -110,7 +131,7 @@ impl<T: Coeff> Mul<Num> for PowSeries<T> {
     type Output = PowSeries<PowSeriesK<T>>;
     fn mul(self, rhs: Num) -> Self::Output {
         PowSeries {
-            coeffs: PowSeriesK { ser: self, n: rhs }
+            coeffs: PowSeriesK { ser: self, n: rhs },
         }
     }
 }
@@ -118,21 +139,25 @@ impl<T: Coeff> Mul<Num> for PowSeries<T> {
 #[derive(Clone)]
 pub struct PowSeriesK<T: Coeff> {
     ser: PowSeries<T>,
-    n: Num
+    n: Num,
 }
 
 impl<T: Coeff> Iterator for PowSeriesK<T> {
     type Item = Num;
     fn next(&mut self) -> Option<Self::Item> {
-        Some(self.ser.next().unwrap_or_default() * self.n)      
+        Some(self.ser.next().unwrap_or_default() * self.n)
     }
 }
 
 // Requires that factor2 (rhs) has no constant term (!!!)
-impl<T: Coeff> PowSeries<T> {    
-    pub fn apply_on<T2: Coeff>(self, rhs: PowSeries<T2>) -> PowSeries<PowNest<T,T2>> {
+impl<T: Coeff> PowSeries<T> {
+    pub fn apply_on<T2: Coeff>(self, rhs: PowSeries<T2>) -> PowSeries<PowNest<T, T2>> {
         PowSeries {
-            coeffs: PowNest { factor1: self, factor2: rhs, pow: 0 }
+            coeffs: PowNest {
+                factor1: self,
+                factor2: rhs,
+                pow: 0,
+            },
         }
     }
 }
@@ -141,27 +166,34 @@ impl<T: Coeff> PowSeries<T> {
 pub struct PowNest<T: Coeff, T2: Coeff> {
     factor1: PowSeries<T>,
     factor2: PowSeries<T2>,
-    pow: usize
+    pow: usize,
 }
 
-impl<T: Coeff, T2: Coeff> Iterator for PowNest<T,T2> {
+impl<T: Coeff, T2: Coeff> Iterator for PowNest<T, T2> {
     type Item = Num;
     fn next(&mut self) -> Option<Self::Item> {
         self.pow += 1;
 
         let mut c = self.factor1.clone().coeffs.take(self.pow);
-        let d = self.factor2.clone().coeffs.take(self.pow).collect::<Vec<Num>>();
+        let d = self
+            .factor2
+            .clone()
+            .coeffs
+            .take(self.pow)
+            .collect::<Vec<Num>>();
 
-        let mut s = 0.0;//c.next().unwrap_or_default();
+        let mut s = 0.0; //c.next().unwrap_or_default();
 
         for i in 0..self.pow {
-            let pgen = PartitionGenerator::new(self.pow-1,i);
+            let pgen = PartitionGenerator::new(self.pow - 1, i);
 
-            s += pgen.map(|a| a.iter().map(|&n| d[n]).product::<Num>())
-                .sum::<Num>() * c.next().unwrap_or_default();
+            s += pgen
+                .map(|a| a.iter().map(|&n| d[n]).product::<Num>())
+                .sum::<Num>()
+                * c.next().unwrap_or_default();
         }
-        
-        Some(s)        
+
+        Some(s)
     }
 }
 
@@ -193,7 +225,7 @@ impl Iterator for Constant {
 #[derive(Clone, Copy)]
 pub struct Exp {
     cur: usize,
-    curk: Num
+    curk: Num,
 }
 
 impl Iterator for Exp {

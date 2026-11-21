@@ -1,2 +1,2 @@
-pub mod power;
 pub mod partition;
+pub mod power;
