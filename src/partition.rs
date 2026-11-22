@@ -1,5 +1,6 @@
 // Generate ORDERED partitions
 
+#[derive(Clone)]
 pub struct PartitionGenerator {
     cur: Vec<usize>,
     exhausted: bool,

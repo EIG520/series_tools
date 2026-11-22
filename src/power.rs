@@ -6,15 +6,7 @@ use crate::partition::PartitionGenerator;
 
 pub type Num = f32;
 pub trait Coeff: Iterator<Item = Num> + Clone {}
-
-impl<T: Coeff> Coeff for PowSeries<T> {}
-impl<T: Coeff> Coeff for PowSeriesK<T> {}
-impl<T: Coeff, T2: Coeff> Coeff for PowSum<T, T2> {}
-impl<T: Coeff, T2: Coeff> Coeff for PowProduct<T, T2> {}
-impl<T: Coeff, T2: Coeff> Coeff for PowNest<T, T2> {}
-impl Coeff for Geometric {}
-impl Coeff for Constant {}
-impl Coeff for Exp {}
+impl<T: Iterator<Item = Num> + Clone> Coeff for T {}
 
 #[derive(Clone)]
 pub struct PowSeries<T: Coeff> {
@@ -40,7 +32,7 @@ impl<T: Coeff> PowSeries<T> {
         let mut t = self.clone().take(n);
 
         for i in 0..n {
-            print!("{}x^{i} + ", t.next().unwrap_or_default())
+            print!("{}x^{{{i}}} + ", t.next().unwrap_or_default())
         }
 
         print!("...");
@@ -188,12 +180,69 @@ impl<T: Coeff, T2: Coeff> Iterator for PowNest<T, T2> {
             let pgen = PartitionGenerator::new(self.pow - 1, i);
 
             s += pgen
-                .map(|a| a.iter().map(|&n| d[n]).product::<Num>())
+                .map(|a| a.iter().map(|&n| d.get(n).unwrap_or(&0.0)).product::<Num>())
                 .sum::<Num>()
                 * c.next().unwrap_or_default();
         }
 
         Some(s)
+    }
+}
+
+
+// Compute G where G(f(x)) = kG(x)
+// as long as f(0) = 0 and probably other conditions
+impl<T: Coeff> PowSeries<T> {
+    pub fn schroder(self) -> PowSeries<PowSchroder<T>> {
+        PowSeries {
+            coeffs: PowSchroder { func: self, schrod: vec![], k: 3.0/2.0, pow: 0 },
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct PowSchroder<T: Coeff> {
+    func: PowSeries<T>,
+    schrod: Vec<Num>,
+    k: Num,
+    pow: usize,
+}
+
+impl<T: Coeff> Iterator for PowSchroder<T> {
+    type Item = Num;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.pow += 1;
+
+        if self.pow == 1 { self.schrod.push(0.0); return Some(0.0); }
+        if self.pow == 2 { self.schrod.push(1.0); return Some(1.0); }
+
+        let c = self.schrod.clone();
+        let d = self
+            .func
+            .clone()
+            .coeffs
+            .take(self.pow)
+            .collect::<Vec<Num>>();
+
+        let mut s = 0.0; //c.next().unwrap_or_default();
+
+        for i in 0..self.pow-1 {
+            let pgen = PartitionGenerator::new(self.pow - 1, i);
+            let mul = pgen.clone()
+                .map(|a| a.iter().map(|&n| d[n]).product::<Num>())
+                .sum::<Num>();
+
+            s += mul
+                * c[i];
+        }
+
+        let t = -s / (self.k.powi(self.pow as i32 - 1) - self.k);
+
+        // println!("??? {}", self.pow as i32 -1);
+
+        self.schrod.push(t);
+
+        Some(t)
     }
 }
 
@@ -240,6 +289,36 @@ impl Iterator for Exp {
 }
 
 impl Exp {
+    pub fn new() -> Self {
+        Self { cur: 0, curk: 1.0 }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Cosine {
+    cur: usize,
+    curk: Num,
+}
+
+impl Iterator for Cosine {
+    type Item = Num;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let k = self.curk;
+        self.cur += 1;
+        self.curk /= self.cur as Num;
+
+        Some(match self.cur % 4 {
+            0 => 0.0,
+            2 => 0.0,
+            1 => k,
+            3 => -k,
+            _ => panic!()
+        })
+    }
+}
+
+impl Cosine {
     pub fn new() -> Self {
         Self { cur: 0, curk: 1.0 }
     }
