@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::f64::consts::PI;
 
 use series_tools::power::{Cosine, PowSeries};
 

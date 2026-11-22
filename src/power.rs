@@ -4,7 +4,7 @@ use std::ops::{Add, Mul};
 
 use crate::partition::PartitionGenerator;
 
-pub type Num = f32;
+pub type Num = f64;
 pub trait Coeff: Iterator<Item = Num> + Clone {}
 impl<T: Iterator<Item = Num> + Clone> Coeff for T {}
 
